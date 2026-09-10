@@ -1,0 +1,29 @@
+# Git ignore for CloudShift AI backend
+
+# Maven build output
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Environment secrets
+.env
+*.env
+
+# IDE files
+.idea/
+*.iml
+*.iws
+.vscode/
+*.classpath
+*.project
+*.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
