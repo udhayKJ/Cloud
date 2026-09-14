@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Primary PostgreSQL 16 Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: cloudshift_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cloudshift_db
+      POSTGRES_USER: cloudshift_user
+      POSTGRES_PASSWORD: cloudshift_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ./indexes.sql:/docker-entrypoint-initdb.d/02_indexes.sql:ro
+      - ./views.sql:/docker-entrypoint-initdb.d/03_views.sql:ro
+      - ./seed.sql:/docker-entrypoint-initdb.d/04_seed.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U cloudshift_user -d cloudshift_db" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Optional Web-based pgAdmin UI for visual database exploration
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: cloudshift_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@cloudshift.com
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+volumes:
+  pgdata:
+  pgadmin_data:
