@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Space_Grotesk, JetBrains_Mono } from 'next/font/google'
+import { MotionProvider } from '@/components/shared/motion-provider'
 import './globals.css'
 
 const spaceGrotesk = Space_Grotesk({
@@ -19,7 +20,6 @@ export const metadata: Metadata = {
   title: 'CloudShift AI — Intelligent Cloud Migration & DR Simulator',
   description:
     'Analyse legacy infrastructure, generate explainable multi-objective AWS architectures, estimate cost, and prove resilience through disaster-recovery simulation.',
-  generator: 'v0.app',
   icons: {
     icon: [
       { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
@@ -46,7 +46,7 @@ export default function RootLayout({
       className={`dark bg-background ${spaceGrotesk.variable} ${jetbrainsMono.variable}`}
     >
       <body className="antialiased">
-        {children}
+        <MotionProvider>{children}</MotionProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

@@ -3,6 +3,7 @@ CloudShift AI: FastAPI Unified Router
 Implements all 10 API endpoints strictly as specified in Project.md Section 4
 """
 
+from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Query, Body
 from backend.models import (
@@ -284,7 +285,7 @@ def generate_full_report(p: InfrastructureProfile):
         "projectId": p.id,
         "projectName": p.name,
         "industry": p.industry,
-        "generatedAt": "2026-09-13T19:15:00Z",
+        "generatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
         "executiveSummary": {
             "recommendedStrategy": migration.strategy.value,
             "strategyConfidencePct": migration.confidence,

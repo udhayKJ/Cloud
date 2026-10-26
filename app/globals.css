@@ -137,6 +137,54 @@
   ::selection {
     background: color-mix(in oklch, var(--primary) 40%, transparent);
   }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    opacity: 0.4;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* Print: render reports as a clean light document without the app chrome */
+@media print {
+  :root,
+  .dark {
+    color-scheme: light;
+    --background: #fff;
+    --surface: #fff;
+    --foreground: #111827;
+    --card: #fff;
+    --card-foreground: #111827;
+    --muted: #f3f4f6;
+    --muted-foreground: #4b5563;
+    --accent: #f3f4f6;
+    --border: #d1d5db;
+    --primary: #b45309;
+    --success: #047857;
+    --warning: #a16207;
+    --destructive: #b91c1c;
+    --info: #0369a1;
+  }
+  .card-sheen::before,
+  .dot-bg {
+    display: none !important;
+  }
+  section,
+  tr {
+    break-inside: avoid;
+  }
 }
 
 @layer utilities {
@@ -203,6 +251,25 @@
 }
 .react-flow__attribution {
   display: none;
+}
+.react-flow__edge-textbg {
+  fill: var(--card);
+}
+.react-flow__edge-text {
+  fill: var(--muted-foreground);
+  font-size: 10px;
+}
+.react-flow__controls {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  box-shadow: none;
+}
+.react-flow__controls-button {
+  border-bottom-color: var(--border);
+}
+.react-flow__controls-button svg {
+  fill: currentColor;
 }
 .react-flow__node-group {
   background: transparent;

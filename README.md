@@ -36,10 +36,16 @@ npm install
 ```
 
 ### Step 3: Run the Unified System
+
+**Windows (no commands needed):** double-click **`CloudShift.bat`**.
+It installs dependencies on the first run, starts the backend and frontend in the background, and opens the app in your browser.
+Double-click **`Stop CloudShift.bat`** to shut everything down. Logs are written to the `logs/` folder.
+
+**Any platform (terminal):**
 ```bash
 python run_all.py
 ```
-*(On Windows, you can also double-click `start.bat`)*
+*(On Windows, `start.bat` runs the same thing in a console window.)*
 
 Once started, open:
 - 🌐 **Frontend UI**: [http://localhost:3000](http://localhost:3000)
@@ -74,7 +80,9 @@ python tests/system_tests.py
 ├── requirements.txt      # Python dependencies
 ├── package.json          # Node dependencies
 ├── run_all.py            # Unified system launcher
-└── start.bat             # 1-click Windows runner
+├── CloudShift.bat        # Windows double-click launcher (background + opens browser)
+├── Stop CloudShift.bat   # Stops the background services
+└── start.bat             # Windows console runner
 ```
 
 ---

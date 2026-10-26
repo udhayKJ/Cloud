@@ -1,14 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { motion } from 'motion/react'
+import { motion, type Variants } from 'motion/react'
 import { ArrowRight, Play, Server, Database, HardDrive, Globe, Shield, Activity } from 'lucide-react'
 
-const container = {
+const container: Variants = {
   hidden: {},
   show: { transition: { staggerChildren: 0.1, delayChildren: 0.1 } },
 }
-const item = {
+const item: Variants = {
   hidden: { opacity: 0, y: 20 },
   show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } },
 }
@@ -84,8 +84,8 @@ export function Hero() {
         className="card-sheen relative rounded-2xl border border-border bg-card p-5 md:p-6"
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-        <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-3">
-          <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 items-stretch gap-3 sm:grid-cols-[1fr_auto_1fr]">
+          <div className="flex min-w-0 flex-col gap-2">
             <span className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               On-premise
             </span>
@@ -95,18 +95,18 @@ export function Hero() {
                 initial={{ opacity: 0, x: -12 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.6 + i * 0.12 }}
-                className="flex items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5"
+                className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-background/50 px-3 py-2.5"
               >
                 <n.icon className="size-4 shrink-0 text-muted-foreground" />
-                <span className="flex flex-col leading-tight">
-                  <span className="text-xs font-medium">{n.label}</span>
-                  <span className="text-[10px] text-muted-foreground">{n.sub}</span>
+                <span className="flex min-w-0 flex-col leading-tight">
+                  <span className="truncate text-xs font-medium">{n.label}</span>
+                  <span className="truncate text-[10px] text-muted-foreground">{n.sub}</span>
                 </span>
               </motion.div>
             ))}
           </div>
 
-          <div className="flex flex-col items-center justify-center gap-2 px-1">
+          <div className="hidden flex-col items-center justify-center gap-2 px-1 sm:flex">
             <svg width="40" height="200" viewBox="0 0 40 200" className="text-primary" aria-hidden="true">
               {[30, 100, 170].map((y, i) => (
                 <motion.path
@@ -135,7 +135,7 @@ export function Hero() {
             <span className="text-center text-[10px] font-semibold uppercase tracking-wider text-primary">Engine</span>
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex min-w-0 flex-col gap-2">
             <span className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
               AWS target
             </span>
@@ -145,12 +145,12 @@ export function Hero() {
                 initial={{ opacity: 0, x: 12 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 1.4 + i * 0.12 }}
-                className="flex items-center gap-3 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2.5"
+                className="flex min-w-0 items-center gap-3 rounded-lg border border-primary/25 bg-primary/5 px-3 py-2.5"
               >
                 <n.icon className="size-4 shrink-0 text-primary" />
-                <span className="flex flex-col leading-tight">
-                  <span className="text-xs font-medium">{n.label}</span>
-                  <span className="text-[10px] text-muted-foreground">{n.sub}</span>
+                <span className="flex min-w-0 flex-col leading-tight">
+                  <span className="truncate text-xs font-medium">{n.label}</span>
+                  <span className="truncate text-[10px] text-muted-foreground">{n.sub}</span>
                 </span>
               </motion.div>
             ))}

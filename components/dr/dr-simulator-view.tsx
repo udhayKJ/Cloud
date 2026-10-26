@@ -1,253 +1,330 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { motion, AnimatePresence } from 'motion/react'
+import { motion } from 'motion/react'
 import {
-  Siren,
   Server,
   Database,
   Layers,
   Globe,
-  Play,
   CheckCircle2,
-  AlertTriangle,
+  XCircle,
   Timer,
   HardDrive,
   Activity,
   ArrowRight,
-  ShieldAlert,
-  Clock
+  Clock,
+  RotateCcw,
+  Loader2,
+  Zap,
 } from 'lucide-react'
-import { useAnalysis, useActiveProject } from '@/lib/store'
-import { PageHeader, Section, Pill, MetricCard, Stagger } from '@/components/shared/primitives'
-import { simulateFailure, SCENARIOS } from '@/lib/engine'
-import { formatMinutes } from '@/lib/engine'
-import type { FailureScenario, DrSimulationResult } from '@/lib/types'
-import { Button } from '@/components/ui/button'
+import { useAnalysis, useActiveProject, useProjectStore } from '@/lib/store'
+import {
+  PageHeader,
+  Section,
+  Pill,
+  MetricCard,
+  Stagger,
+  NextStep,
+  Callout,
+  TIER_LABEL,
+  buttonClass,
+} from '@/components/shared/primitives'
+import { simulateFailure, SCENARIOS, formatMinutes } from '@/lib/engine'
+import type { FailureScenario, Tier } from '@/lib/types'
 import { cn } from '@/lib/utils'
+
+type Phase = 'idle' | 'running' | 'done'
+
+const STEP_INTERVAL_MS = 900
+
+const SCENARIO_ICONS: Record<FailureScenario, typeof Server> = {
+  ec2: Server,
+  database: Database,
+  az: Layers,
+  application: Activity,
+  region: Globe,
+}
+
+function formatSeconds(sec: number) {
+  if (sec < 60) return `${sec}s`
+  const m = Math.floor(sec / 60)
+  const s = sec % 60
+  return s ? `${m}m ${s}s` : `${m}m`
+}
 
 export function DrSimulatorView() {
   const analysis = useAnalysis()
   const profile = useActiveProject()
+  const advanceStatus = useProjectStore((s) => s.advanceStatus)
   const { architectures, recommendedIndex } = analysis
-  const [selectedTier, setSelectedTier] = useState<string>(architectures[recommendedIndex]?.tier || 'balanced')
+  const [selectedTier, setSelectedTier] = useState<Tier>(architectures[recommendedIndex]?.tier || 'balanced')
   const [selectedScenario, setSelectedScenario] = useState<FailureScenario>('database')
-  const [simulating, setSimulating] = useState(false)
-  const [activeStepIndex, setActiveStepIndex] = useState(0)
+  const [phase, setPhase] = useState<Phase>('idle')
+  const [completedSteps, setCompletedSteps] = useState(0)
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const currentArch = architectures.find((a) => a.tier === selectedTier) || architectures[recommendedIndex]
+  const simResult = useMemo(() => simulateFailure(profile, currentArch, selectedScenario), [profile, currentArch, selectedScenario])
 
-  const simResult: DrSimulationResult = simulateFailure(profile, currentArch, selectedScenario)
+  const stopTimer = () => {
+    if (timer.current) clearInterval(timer.current)
+    timer.current = null
+  }
+
+  // Any change to what is being simulated resets the run; also clean up on unmount.
+  useEffect(() => {
+    stopTimer()
+    setPhase('idle')
+    setCompletedSteps(0)
+  }, [selectedScenario, selectedTier, profile.id])
+  useEffect(() => stopTimer, [])
 
   function runSimulation() {
-    setSimulating(true)
-    setActiveStepIndex(0)
-
-    let current = 0
-    const interval = setInterval(() => {
-      current++
-      if (current >= simResult.steps.length) {
-        clearInterval(interval)
-        setSimulating(false)
+    stopTimer()
+    setPhase('running')
+    setCompletedSteps(0)
+    const total = simResult.steps.length
+    let done = 0
+    timer.current = setInterval(() => {
+      done++
+      setCompletedSteps(done)
+      if (done >= total) {
+        stopTimer()
+        setPhase('done')
+        advanceStatus(profile.id, 'simulated')
       }
-      setActiveStepIndex(current)
-    }, 900)
+    }, STEP_INTERVAL_MS)
   }
 
-  const scenarioIcons: Record<FailureScenario, typeof Server> = {
-    ec2: Server,
-    database: Database,
-    az: Layers,
-    application: Activity,
-    region: Globe,
-  }
+  const elapsedSec = simResult.steps.slice(0, completedSteps).reduce((a, s) => a + s.durationSec, 0)
+  const passed = simResult.meetsRto && simResult.meetsRpo
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Step 05 · Disaster Recovery Simulator"
-        title="Fault Injection & DR Simulation Engine"
-        description="Simulate real-world infrastructure failures, validate Step Functions recovery workflows, and measure RTO / RPO resilience."
+        eyebrow="Step 05 · Disaster recovery"
+        title="Disaster recovery simulator"
+        description="Pick a failure and an architecture option, inject the fault, and watch the automated recovery workflow run step by step. Recovery time and data loss are measured against your targets."
         actions={
-          <Link
-            href="/security"
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.02]"
-          >
-            Security Analysis
-            <ArrowRight className="size-4" />
+          <Link href="/security" className={buttonClass('primary')}>
+            Security analysis
+            <ArrowRight />
           </Link>
         }
       />
 
-      {/* Scenario Selector & Tier Selector */}
-      <div className="grid gap-4 md:grid-cols-5">
-        {SCENARIOS.map((sc) => {
-          const isSelected = selectedScenario === sc.id
-          const Icon = scenarioIcons[sc.id] || Server
-          return (
-            <button
-              key={sc.id}
-              type="button"
-              onClick={() => {
-                setSelectedScenario(sc.id)
-                setActiveStepIndex(simResult.steps.length)
-              }}
-              className={cn(
-                'flex flex-col items-center gap-2 rounded-xl border p-4 text-center transition-all',
-                isSelected
-                  ? 'border-danger bg-danger/10 ring-2 ring-danger/40 shadow-lg shadow-danger/10'
-                  : 'border-border bg-card hover:bg-accent/40'
-              )}
-            >
-              <div className={cn('flex size-10 items-center justify-center rounded-lg', isSelected ? 'bg-danger text-danger-foreground' : 'bg-muted text-muted-foreground')}>
-                <Icon className="size-5" />
-              </div>
-              <span className="text-xs font-semibold text-foreground">{sc.title}</span>
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Metrics Banner */}
-      <Stagger className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Achieved RTO (Recovery Time)"
-          value={simResult.rtoMinutes}
-          format={(n) => formatMinutes(n)}
-          hint={`Target: ${formatMinutes(profile.rtoMinutes)}`}
-          icon={Timer}
-          tone={simResult.meetsRto ? 'success' : 'danger'}
-        />
-        <MetricCard
-          label="Achieved RPO (Data Loss Window)"
-          value={simResult.rpoMinutes}
-          format={(n) => formatMinutes(n)}
-          hint={`Target: ${formatMinutes(profile.rpoMinutes)}`}
-          icon={Clock}
-          tone={simResult.meetsRpo ? 'success' : 'danger'}
-        />
-        <MetricCard
-          label="Estimated Data Loss"
-          value={simResult.dataLossMb}
-          format={(n) => (n === 0 ? '0 MB (Zero Loss)' : `${n} MB`)}
-          hint="Replication delta at crash"
-          icon={HardDrive}
-          tone={simResult.dataLossMb === 0 ? 'success' : 'warning'}
-        />
-        <MetricCard
-          label="Availability Impact"
-          value={simResult.availabilityImpactPct}
-          format={(n) => `${n}%`}
-          hint={`Recovered by ${simResult.recoveredBy.split(' ')[0]}`}
-          icon={Activity}
-          tone={simResult.availabilityImpactPct <= 5 ? 'success' : 'warning'}
-        />
-      </Stagger>
+      <Section title="1. Choose a failure scenario" bodyClassName="p-4">
+        <div role="radiogroup" aria-label="Failure scenario" className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          {SCENARIOS.map((sc) => {
+            const isSelected = selectedScenario === sc.id
+            const Icon = SCENARIO_ICONS[sc.id] || Server
+            return (
+              <button
+                key={sc.id}
+                type="button"
+                role="radio"
+                aria-checked={isSelected}
+                disabled={phase === 'running'}
+                onClick={() => setSelectedScenario(sc.id)}
+                title={sc.description}
+                className={cn(
+                  'flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-all disabled:cursor-not-allowed disabled:opacity-60 md:p-4',
+                  isSelected
+                    ? 'border-destructive/60 bg-destructive/[0.07] shadow-[0_0_0_1px_var(--destructive)_inset]'
+                    : 'border-border bg-background/40 hover:border-foreground/20 hover:bg-accent/40',
+                )}
+              >
+                <span
+                  className={cn(
+                    'flex size-9 items-center justify-center rounded-lg transition-colors',
+                    isSelected ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  <Icon className="size-4" />
+                </span>
+                <span className="text-xs font-semibold leading-snug md:text-sm">{sc.title}</span>
+                <span className="hidden text-[11px] leading-snug text-muted-foreground md:block">{sc.blast}</span>
+              </button>
+            )
+          })}
+        </div>
+      </Section>
 
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* Simulation Control & Failed Components */}
-        <Section title="Failure Injection Control" description="Trigger live scenario failure.">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1 rounded-lg border border-danger/30 bg-danger/5 p-3.5">
-              <div className="flex items-center gap-2 text-danger font-semibold text-xs uppercase tracking-wider">
-                <ShieldAlert className="size-4" />
-                <span>Simulated Target</span>
+        <Section title="2. Inject the fault" description="Simulate against one of the generated architectures.">
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <span id="dr-tier-label" className="text-xs font-medium text-foreground/80">
+                Architecture option
+              </span>
+              <div role="radiogroup" aria-labelledby="dr-tier-label" className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-background/40 p-1">
+                {architectures.map((a, idx) => (
+                  <button
+                    key={a.tier}
+                    type="button"
+                    role="radio"
+                    aria-checked={a.tier === selectedTier}
+                    disabled={phase === 'running'}
+                    onClick={() => setSelectedTier(a.tier)}
+                    className={cn(
+                      'relative rounded-md px-2 py-1.5 text-xs font-medium transition-colors disabled:cursor-not-allowed',
+                      a.tier === selectedTier ? 'bg-card text-foreground shadow ring-1 ring-border' : 'text-muted-foreground hover:text-foreground',
+                    )}
+                  >
+                    {TIER_LABEL[a.tier]}
+                    {idx === recommendedIndex && <span className="absolute right-1 top-1 size-1.5 rounded-full bg-success" aria-label="recommended" />}
+                  </button>
+                ))}
               </div>
-              <span className="text-sm font-semibold text-foreground">{simResult.title}</span>
-              <span className="text-xs text-muted-foreground mt-1">Tier: {currentArch.name} ({currentArch.drStrategy})</span>
+              <span className="text-xs text-muted-foreground">
+                {currentArch.drStrategy} · {currentArch.multiAz ? 'Multi-AZ' : 'Single-AZ'}
+                {currentArch.multiRegion ? ' · Multi-region' : ''}
+              </span>
             </div>
 
             <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Affected Components</span>
-              <ul className="flex flex-col gap-1.5 text-xs text-muted-foreground">
+              <span className="text-xs font-medium text-foreground/80">Components that fail</span>
+              <ul className="flex flex-col gap-1.5">
                 {simResult.failedComponents.map((fc, i) => (
-                  <li key={i} className="flex items-center gap-2 rounded bg-muted/40 px-2.5 py-1.5 font-mono text-danger">
-                    <span className="size-1.5 rounded-full bg-danger" />
+                  <li key={i} className="flex items-center gap-2 rounded-md border border-destructive/20 bg-destructive/5 px-2.5 py-1.5 font-mono text-xs text-destructive">
+                    <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
                     {fc}
                   </li>
                 ))}
               </ul>
             </div>
 
-            <Button
-              type="button"
-              disabled={simulating}
-              onClick={runSimulation}
-              className="mt-2 w-full gap-2 bg-danger text-danger-foreground hover:bg-danger/90 font-semibold"
-            >
-              <Play className={cn('size-4', simulating && 'animate-spin')} />
-              {simulating ? 'Simulating Recovery Workflow...' : 'Inject Fault & Run Recovery'}
-            </Button>
+            {phase === 'done' ? (
+              <button type="button" onClick={runSimulation} className={buttonClass('secondary', 'w-full')}>
+                <RotateCcw />
+                Run again
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={phase === 'running'}
+                onClick={runSimulation}
+                className={buttonClass('primary', 'w-full bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-70')}
+              >
+                {phase === 'running' ? <Loader2 className="animate-spin" /> : <Zap />}
+                {phase === 'running' ? 'Recovering…' : 'Inject fault & recover'}
+              </button>
+            )}
           </div>
         </Section>
 
-        {/* Step Functions Recovery Workflow Timeline */}
         <Section
-          title="AWS Step Functions Recovery Workflow"
-          description="Automated orchestration state machine execution sequence."
+          title="3. Recovery workflow"
+          description="Step Functions runbook executed after the failure is detected."
           className="lg:col-span-2"
+          action={
+            <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums text-muted-foreground" aria-live="polite">
+              <Clock className="size-3.5" />
+              {phase === 'idle' ? 'Ready' : `T+${formatSeconds(elapsedSec)}`}
+            </span>
+          }
         >
-          <div className="flex flex-col gap-3">
+          <ol className="relative flex flex-col gap-2.5">
             {simResult.steps.map((step, idx) => {
-              const isDone = idx <= activeStepIndex || !simulating
-              const isCurrent = idx === activeStepIndex && simulating
+              const isDone = idx < completedSteps
+              const isCurrent = phase === 'running' && idx === completedSteps
               return (
-                <motion.div
-                  key={step.id}
-                  initial={{ opacity: 0, x: -10 }}
+                <motion.li
+                  key={`${selectedScenario}-${selectedTier}-${step.id}`}
+                  initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.1 }}
+                  transition={{ delay: idx * 0.04 }}
                   className={cn(
-                    'flex items-start gap-3 rounded-lg border p-3.5 transition-all',
-                    isCurrent
-                      ? 'border-primary bg-primary/10 ring-2 ring-primary/40'
-                      : isDone
-                      ? 'border-border bg-card'
-                      : 'border-border/40 bg-muted/20 opacity-40'
+                    'flex items-start gap-3 rounded-lg border p-3 transition-colors',
+                    isCurrent && 'border-primary/60 bg-primary/[0.07]',
+                    isDone && 'border-success/25 bg-success/[0.04]',
+                    !isCurrent && !isDone && 'border-border bg-background/40',
+                    phase === 'running' && !isDone && !isCurrent && 'opacity-50',
                   )}
                 >
-                  <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-primary font-mono text-xs font-bold">
-                    {idx + 1}
-                  </div>
-                  <div className="flex flex-1 flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-foreground">{step.title}</span>
-                      <span className="font-mono text-xs text-muted-foreground flex items-center gap-1">
-                        <Clock className="size-3" />
-                        {step.durationSec}s
+                  <span
+                    className={cn(
+                      'flex size-7 shrink-0 items-center justify-center rounded-full font-mono text-xs font-semibold',
+                      isDone ? 'bg-success/15 text-success' : isCurrent ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {isDone ? <CheckCircle2 className="size-4" /> : isCurrent ? <Loader2 className="size-4 animate-spin" /> : idx + 1}
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-sm font-semibold">{step.title}</span>
+                      <span className="flex shrink-0 items-center gap-1 font-mono text-xs text-muted-foreground">
+                        <Timer className="size-3" />
+                        {formatSeconds(step.durationSec)}
                       </span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{step.description}</p>
-                    <span className="font-mono text-[10px] text-primary/80 uppercase tracking-wider">{step.service}</span>
+                    <p className="text-xs leading-relaxed text-muted-foreground">{step.description}</p>
+                    <span className="font-mono text-[10px] uppercase tracking-wider text-primary/80">{step.service}</span>
                   </div>
-                  {isDone && <CheckCircle2 className="size-4 shrink-0 text-success" />}
-                </motion.div>
+                </motion.li>
               )
             })}
-          </div>
+          </ol>
         </Section>
       </div>
 
-      {/* Operational Narrative */}
-      <Section title="Resilience & Recovery Evaluation Narrative" description="Architectural analysis of disaster recovery performance.">
-        <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs font-semibold text-primary uppercase tracking-wider">
-            <CheckCircle2 className="size-4 text-success" />
-            <span>Resilience Assessment Outcome</span>
-          </div>
-          <p className="text-sm leading-relaxed text-foreground whitespace-pre-line">
-            {simResult.narrative}
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2 pt-2 border-t border-border text-xs text-muted-foreground">
-            <span>Recovery Mechanism: <strong className="text-foreground">{simResult.recoveredBy}</strong></span>
-            <span>•</span>
-            <span>RTO Compliance: <strong className={simResult.meetsRto ? 'text-success' : 'text-danger'}>{simResult.meetsRto ? 'MET' : 'BREACHED'}</strong></span>
-            <span>•</span>
-            <span>RPO Compliance: <strong className={simResult.meetsRpo ? 'text-success' : 'text-danger'}>{simResult.meetsRpo ? 'MET' : 'BREACHED'}</strong></span>
-          </div>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold">{phase === 'done' ? 'Measured outcome' : 'Expected outcome'}</h2>
+          {phase === 'done' && <Pill tone={passed ? 'success' : 'destructive'}>{passed ? 'Targets met' : 'Targets breached'}</Pill>}
         </div>
-      </Section>
+        <Stagger className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            label="Recovery time (RTO)"
+            value={simResult.rtoMinutes}
+            format={(n) => formatMinutes(n)}
+            hint={`Target ${formatMinutes(profile.rtoMinutes)}`}
+            icon={Timer}
+            tone={simResult.meetsRto ? 'success' : 'destructive'}
+          />
+          <MetricCard
+            label="Data loss window (RPO)"
+            value={simResult.rpoMinutes}
+            format={(n) => (Math.round(n * 10) / 10 === 0 ? '0 min' : formatMinutes(n))}
+            hint={`Target ${formatMinutes(profile.rpoMinutes)}`}
+            icon={Clock}
+            tone={simResult.meetsRpo ? 'success' : 'destructive'}
+          />
+          <MetricCard
+            label="Estimated data loss"
+            value={simResult.dataLossMb}
+            format={(n) => `${Math.round(n).toLocaleString()} MB`}
+            hint={simResult.dataLossMb === 0 ? 'No data lost' : 'Writes since last replication'}
+            icon={HardDrive}
+            tone={simResult.dataLossMb === 0 ? 'success' : 'warning'}
+          />
+          <MetricCard
+            label="Users affected"
+            value={simResult.availabilityImpactPct}
+            format={(n) => `${Math.round(n)}%`}
+            hint={`Recovered by ${simResult.recoveredBy}`}
+            icon={Activity}
+            tone={simResult.availabilityImpactPct <= 5 ? 'success' : simResult.availabilityImpactPct < 100 ? 'warning' : 'destructive'}
+          />
+        </Stagger>
+
+        <Callout
+          tone={passed ? 'success' : 'warning'}
+          icon={passed ? CheckCircle2 : XCircle}
+          title={`${simResult.title} on ${currentArch.name}: RTO ${simResult.meetsRto ? 'met' : 'breached'}, RPO ${simResult.meetsRpo ? 'met' : 'breached'}`}
+        >
+          {simResult.narrative}
+        </Callout>
+      </div>
+
+      <NextStep
+        prev={{ href: '/cost', label: 'Cost analysis' }}
+        href="/security"
+        label="Review security posture"
+        description="Check controls across identity, encryption, network, edge and audit."
+      />
     </div>
   )
 }

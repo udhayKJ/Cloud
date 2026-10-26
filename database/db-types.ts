@@ -8,7 +8,7 @@ import type {
   MigrationPlan,
   ArchitectureOption,
   ArchComponent,
-  DRSimulationResult,
+  DrSimulationResult,
   SecurityReport,
   ProjectStatus,
   DatabaseType,

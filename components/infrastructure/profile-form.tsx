@@ -21,7 +21,7 @@ export function ComputeSection({ p, onChange }: { p: InfrastructureProfile; onCh
     <Section title="Compute" description="Existing server estate." action={<Cpu className="size-4 text-primary" />}>
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Number of servers">
-          {(id) => <NumberInput id={id} value={p.servers} min={1} onChange={(v) => onChange({ servers: v })} />}
+          {(id) => <NumberInput id={id} value={p.servers} min={1} max={5000} onChange={(v) => onChange({ servers: v })} />}
         </Field>
         <Field label="Operating system">
           {(id) => (
@@ -37,10 +37,10 @@ export function ComputeSection({ p, onChange }: { p: InfrastructureProfile; onCh
           )}
         </Field>
         <Field label="vCPUs per server">
-          {(id) => <NumberInput id={id} value={p.vcpusPerServer} min={1} onChange={(v) => onChange({ vcpusPerServer: v })} />}
+          {(id) => <NumberInput id={id} value={p.vcpusPerServer} min={1} max={448} onChange={(v) => onChange({ vcpusPerServer: v })} />}
         </Field>
         <Field label="RAM per server">
-          {(id) => <NumberInput id={id} value={p.ramGbPerServer} min={1} suffix="GB" onChange={(v) => onChange({ ramGbPerServer: v })} />}
+          {(id) => <NumberInput id={id} value={p.ramGbPerServer} min={1} max={24576} suffix="GB" onChange={(v) => onChange({ ramGbPerServer: v })} />}
         </Field>
         <Field label="Average CPU utilisation">
           {(id) => <RangeInput id={id} value={p.avgCpuUtil} min={5} max={100} format={(n) => `${n}%`} onChange={(v) => onChange({ avgCpuUtil: v })} />}
@@ -81,11 +81,11 @@ export function DataSection({ p, onChange }: { p: InfrastructureProfile; onChang
             />
           )}
         </Field>
-        <Field label="Database size">
-          {(id) => <NumberInput id={id} value={p.dbSizeGb} min={0} suffix="GB" onChange={(v) => onChange({ dbSizeGb: v })} />}
+        <Field label="Database size" hint={p.database === 'none' ? 'Not used — no database selected.' : undefined}>
+          {(id) => <NumberInput id={id} disabled={p.database === 'none'} value={p.dbSizeGb} min={0} max={1000000} suffix="GB" onChange={(v) => onChange({ dbSizeGb: v })} />}
         </Field>
         <Field label="Total file / object storage" hint="Drives Snowball vs online transfer decisions.">
-          {(id) => <NumberInput id={id} value={p.storageTb} min={0} step={0.5} suffix="TB" onChange={(v) => onChange({ storageTb: v })} />}
+          {(id) => <NumberInput id={id} value={p.storageTb} min={0} max={100000} step={0.5} suffix="TB" onChange={(v) => onChange({ storageTb: v })} />}
         </Field>
         <Toggle
           checked={p.readHeavy}
@@ -116,11 +116,12 @@ export function TrafficSection({ p, onChange }: { p: InfrastructureProfile; onCh
           )}
         </Field>
         <Field label="Peak requests / second">
-          {(id) => <NumberInput id={id} value={p.peakRps} min={1} onChange={(v) => onChange({ peakRps: v })} />}
+          {(id) => <NumberInput id={id} value={p.peakRps} min={1} max={10000000} onChange={(v) => onChange({ peakRps: v })} />}
         </Field>
         <Field label="Traffic pattern" className="sm:col-span-2">
-          {() => (
+          {(_, labelId) => (
             <ChipGroup
+              labelledBy={labelId}
               value={p.trafficPattern}
               onChange={(v) => onChange({ trafficPattern: v })}
               options={[
@@ -132,8 +133,9 @@ export function TrafficSection({ p, onChange }: { p: InfrastructureProfile; onCh
           )}
         </Field>
         <Field label="Workload type" className="sm:col-span-2">
-          {() => (
+          {(_, labelId) => (
             <ChipGroup
+              labelledBy={labelId}
               value={p.workloadType}
               onChange={(v) => onChange({ workloadType: v })}
               options={[
@@ -177,7 +179,7 @@ export function RequirementsSection({ p, onChange }: { p: InfrastructureProfile;
     <Section title="Business requirements" description="Hard constraints the architecture must meet." action={<Target className="size-4 text-destructive" />}>
       <div className="grid gap-5 sm:grid-cols-2">
         <Field label="Monthly budget">
-          {(id) => <NumberInput id={id} value={p.budgetUsd} min={0} step={100} suffix="USD" onChange={(v) => onChange({ budgetUsd: v })} />}
+          {(id) => <NumberInput id={id} value={p.budgetUsd} min={0} max={100000000} step={100} suffix="USD" onChange={(v) => onChange({ budgetUsd: v })} />}
         </Field>
         <Field label="Availability target">
           {(id) => (
@@ -195,14 +197,15 @@ export function RequirementsSection({ p, onChange }: { p: InfrastructureProfile;
           )}
         </Field>
         <Field label="RTO — Recovery Time Objective" hint="Maximum tolerable downtime.">
-          {(id) => <NumberInput id={id} value={p.rtoMinutes} min={1} suffix="min" onChange={(v) => onChange({ rtoMinutes: v })} />}
+          {(id) => <NumberInput id={id} value={p.rtoMinutes} min={1} max={10080} suffix="min" onChange={(v) => onChange({ rtoMinutes: v })} />}
         </Field>
         <Field label="RPO — Recovery Point Objective" hint="Maximum tolerable data loss window.">
-          {(id) => <NumberInput id={id} value={p.rpoMinutes} min={0} suffix="min" onChange={(v) => onChange({ rpoMinutes: v })} />}
+          {(id) => <NumberInput id={id} value={p.rpoMinutes} min={0} max={10080} suffix="min" onChange={(v) => onChange({ rpoMinutes: v })} />}
         </Field>
         <Field label="Performance requirement">
-          {() => (
+          {(_, labelId) => (
             <ChipGroup
+              labelledBy={labelId}
               value={p.performance}
               onChange={(v) => onChange({ performance: v })}
               options={[
@@ -214,8 +217,9 @@ export function RequirementsSection({ p, onChange }: { p: InfrastructureProfile;
           )}
         </Field>
         <Field label="Security requirement">
-          {() => (
+          {(_, labelId) => (
             <ChipGroup
+              labelledBy={labelId}
               value={p.security}
               onChange={(v) => onChange({ security: v })}
               options={[
@@ -227,7 +231,7 @@ export function RequirementsSection({ p, onChange }: { p: InfrastructureProfile;
           )}
         </Field>
         <Field label="Compliance frameworks" className="sm:col-span-2">
-          {() => <MultiChipGroup options={COMPLIANCE_OPTIONS} value={p.compliance} onChange={(v) => onChange({ compliance: v })} />}
+          {(_, labelId) => <MultiChipGroup labelledBy={labelId} options={COMPLIANCE_OPTIONS} value={p.compliance} onChange={(v) => onChange({ compliance: v })} />}
         </Field>
       </div>
     </Section>
@@ -244,7 +248,7 @@ export function PrioritiesSection({ p, onChange }: { p: InfrastructureProfile; o
       action={<SlidersHorizontal className="size-4 text-primary" />}
     >
       <div className="flex flex-col gap-5">
-        <div className="flex h-2.5 overflow-hidden rounded-full bg-muted">
+        <div className="flex h-2.5 overflow-hidden rounded-full bg-muted" aria-hidden="true">
           {keys.map((k) => (
             <span
               key={k}
@@ -268,9 +272,15 @@ export function PrioritiesSection({ p, onChange }: { p: InfrastructureProfile; o
             </Field>
           ))}
         </div>
-        <p className="text-xs text-muted-foreground">
-          Weights are normalised automatically — total {total}%.
-        </p>
+        {total === 0 ? (
+          <p className="text-xs text-warning" role="status">
+            All weights are zero — raise at least one priority so the options can be ranked.
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Weights are relative and normalised automatically (current total {total}%).
+          </p>
+        )}
       </div>
     </Section>
   )

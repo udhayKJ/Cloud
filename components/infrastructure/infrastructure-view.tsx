@@ -27,7 +27,7 @@ export function InfrastructureView() {
       <PageHeader
         eyebrow="Step 01 · Infrastructure profile"
         title="Describe the existing estate"
-        description="Every field feeds the deterministic decision engine. The live panel updates as you type so you can see how each input shifts the recommendation."
+        description="Every field feeds the decision engine. Changes save automatically, and the live preview shows how each input shifts the recommendation."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -35,7 +35,16 @@ export function InfrastructureView() {
           <section className="card-sheen rounded-xl border border-border bg-card p-5">
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Project name">
-                {(id) => <TextInput id={id} value={profile.name} onChange={(e) => update({ name: e.target.value })} />}
+                {(id) => (
+                  <TextInput
+                    id={id}
+                    value={profile.name}
+                    maxLength={80}
+                    placeholder="Project name"
+                    aria-invalid={profile.name.trim() === '' || undefined}
+                    onChange={(e) => update({ name: e.target.value })}
+                  />
+                )}
               </Field>
               <Field label="Industry">
                 {(id) => (
@@ -52,6 +61,7 @@ export function InfrastructureView() {
                   <TextInput
                     id={id}
                     value={profile.description}
+                    maxLength={240}
                     placeholder="Short summary of the legacy workload"
                     onChange={(e) => update({ description: e.target.value })}
                   />
@@ -65,7 +75,7 @@ export function InfrastructureView() {
           <EnvironmentSection p={profile} onChange={update} />
           <RequirementsSection p={profile} onChange={update} />
           <PrioritiesSection p={profile} onChange={update} />
-          <NextStep href="/migration" label="Run migration analysis" description="Score Rehost / Replatform / Refactor and map services." />
+          <NextStep href="/migration" label="Run migration analysis" description="Score Rehost / Replatform / Refactor and map services." prev={{ href: '/dashboard', label: 'Dashboard' }} />
         </div>
 
         <aside className="lg:sticky lg:top-24 lg:self-start">
@@ -73,7 +83,8 @@ export function InfrastructureView() {
             <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary to-transparent" />
             <div className="mb-4 flex items-center gap-2">
               <Sparkles className="size-4 text-primary" />
-              <span className="text-sm font-semibold">Live engine preview</span>
+              <span className="text-sm font-semibold">Live preview</span>
+              <span className="ml-auto flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wider text-success"><span className="size-1.5 rounded-full bg-success" aria-hidden="true" />Auto-saved</span>
             </div>
             <ul className="flex flex-col divide-y divide-border">
               <PreviewRow icon={Route} label="Strategy">

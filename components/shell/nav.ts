@@ -31,3 +31,12 @@ export const NAV_ITEMS: NavItem[] = [
   { href: '/well-architected', label: 'Well-Architected', icon: Gauge, step: 7 },
   { href: '/reports', label: 'Reports', icon: FileText, step: 8 },
 ]
+
+export const NAV_GROUPS: { label: string; items: NavItem[] }[] = [
+  { label: 'Workspace', items: NAV_ITEMS.filter((n) => !n.step) },
+  { label: 'Assessment pipeline', items: NAV_ITEMS.filter((n) => n.step) },
+]
+
+export function isNavActive(pathname: string, href: string) {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}

@@ -3,202 +3,256 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'motion/react'
+import { ShieldCheck, Zap, Coins, Cpu, ArrowRight, CheckCircle2, Circle, TrendingUp } from 'lucide-react'
+import { useAnalysis } from '@/lib/store'
 import {
-  Gauge,
-  ShieldCheck,
-  Zap,
-  Coins,
-  Cpu,
-  ArrowRight,
-  Sparkles,
-  CheckCircle2,
-  TrendingUp,
-  Award
-} from 'lucide-react'
-import { useAnalysis, useActiveProject } from '@/lib/store'
-import { PageHeader, Section, Pill, MetricCard, Stagger, ScoreRing } from '@/components/shared/primitives'
+  PageHeader,
+  Section,
+  Pill,
+  ScoreRing,
+  TierSwitcher,
+  NextStep,
+  TIER_LABEL,
+  scoreTone,
+  buttonClass,
+} from '@/components/shared/primitives'
 import { cn } from '@/lib/utils'
+import type { ArchitectureOption, Tier, WellArchitectedScores } from '@/lib/types'
+
+type PillarKey = keyof WellArchitectedScores
+
+function pillarPractices(a: ArchitectureOption): Record<PillarKey, { label: string; ok: boolean }[]> {
+  const has = (id: string) => a.components.some((c) => c.id === id)
+  return {
+    security: [
+      { label: 'Private subnet isolation', ok: true },
+      { label: 'KMS customer-managed keys', ok: a.tier !== 'low-cost' },
+      { label: 'AWS WAF managed rules', ok: has('waf') },
+      { label: 'CloudTrail audit logging', ok: has('cloudtrail') },
+      { label: 'GuardDuty threat detection', ok: has('guardduty') },
+    ],
+    reliability: [
+      { label: 'EC2 Auto Scaling', ok: a.autoScaling },
+      { label: 'Multi-AZ failover', ok: a.multiAz },
+      { label: 'Database read replicas', ok: a.readReplicas > 0 },
+      { label: 'Multi-region DR', ok: a.multiRegion },
+    ],
+    performance: [
+      { label: 'EBS gp3 volumes', ok: has('ebs') },
+      { label: 'CloudFront edge caching', ok: has('cloudfront') },
+      { label: 'ElastiCache for hot reads', ok: has('cache') },
+      { label: 'Aurora / DynamoDB data tier', ok: /Aurora|DynamoDB/.test(a.databaseService) },
+    ],
+    cost: [
+      { label: 'Within monthly budget', ok: a.meets.budget },
+      { label: 'S3 lifecycle tiering', ok: has('s3') },
+      { label: 'Auto Scaling scale-in', ok: a.autoScaling },
+      { label: 'Graviton instances (recommended)', ok: false },
+    ],
+    operations: [
+      { label: 'CloudWatch metrics & alarms', ok: has('cloudwatch') },
+      { label: 'Systems Manager patching', ok: has('ssm') },
+      { label: 'AWS Config conformance rules', ok: has('config') },
+      { label: 'Step Functions DR runbook', ok: has('sfn') },
+    ],
+  }
+}
+
+const PILLARS: { key: PillarKey; title: string; icon: typeof Zap; color: string; description: string }[] = [
+  {
+    key: 'security',
+    title: 'Security',
+    icon: ShieldCheck,
+    color: 'var(--chart-4)',
+    description: 'Protect data and systems with least-privilege IAM, encryption and managed edge filtering.',
+  },
+  {
+    key: 'reliability',
+    title: 'Reliability',
+    icon: Zap,
+    color: 'var(--chart-3)',
+    description: 'Survive infrastructure failures and acquire capacity automatically to meet demand.',
+  },
+  {
+    key: 'performance',
+    title: 'Performance efficiency',
+    icon: Cpu,
+    color: 'var(--chart-2)',
+    description: 'Use compute, storage and caching efficiently as workloads change.',
+  },
+  {
+    key: 'cost',
+    title: 'Cost optimisation',
+    icon: Coins,
+    color: 'var(--chart-1)',
+    description: 'Avoid unnecessary spend through right-sizing, tiering and automation.',
+  },
+  {
+    key: 'operations',
+    title: 'Operational excellence',
+    icon: TrendingUp,
+    color: 'var(--warning)',
+    description: 'Run and improve the system with monitoring, automation and infrastructure as code.',
+  },
+]
+
+const average = (w: WellArchitectedScores) => Math.round((w.security + w.reliability + w.performance + w.cost + w.operations) / 5)
+
+function ratingLabel(score: number) {
+  if (score >= 85) return { label: 'Production-ready', tone: 'success' as const }
+  if (score >= 70) return { label: 'Solid, with gaps', tone: 'primary' as const }
+  return { label: 'Needs improvement', tone: 'destructive' as const }
+}
 
 export function WellArchitectedView() {
   const analysis = useAnalysis()
-  const profile = useActiveProject()
   const { architectures, recommendedIndex } = analysis
-  const [selectedTier, setSelectedTier] = useState<string>(architectures[recommendedIndex]?.tier || 'balanced')
-
+  const [selectedTier, setSelectedTier] = useState<Tier>(architectures[recommendedIndex]?.tier || 'balanced')
   const currentArch = architectures.find((a) => a.tier === selectedTier) || architectures[recommendedIndex]
   const waf = currentArch.wellArchitected
-  const wafAverage = Math.round((waf.security + waf.reliability + waf.performance + waf.cost + waf.operations) / 5)
-
-  const pillars = [
-    {
-      key: 'security',
-      title: 'Security Pillar',
-      score: waf.security,
-      icon: ShieldCheck,
-      color: 'bg-emerald-500',
-      description: 'Protects information, systems, and assets through IAM least-privilege, KMS envelope encryption, and automated WAF filtering.',
-      practices: ['Multi-region CloudTrail enabled', 'KMS Customer Managed Keys (CMK)', 'VPC Private Subnet Isolation', 'AWS WAF OWASP Top 10 rules']
-    },
-    {
-      key: 'reliability',
-      title: 'Reliability Pillar',
-      score: waf.reliability,
-      icon: Zap,
-      color: 'bg-indigo-500',
-      description: 'Survives infrastructure failures and dynamically acquires compute resources to meet demand.',
-      practices: ['Multi-AZ synchronous failover (RPO=0)', 'EC2 Auto Scaling target tracking', 'ALB active health checks', 'Route 53 DNS failover']
-    },
-    {
-      key: 'performance',
-      title: 'Performance Efficiency',
-      score: waf.performance,
-      icon: Cpu,
-      color: 'bg-cyan-500',
-      description: 'Uses compute and storage resources efficiently to maintain performance under changing workloads.',
-      practices: ['AWS Graviton3 ARM compute (c7g/m7g)', 'Amazon Aurora distributed storage', 'Amazon CloudFront global edge caching', 'EBS gp3 3000 IOPS baseline']
-    },
-    {
-      key: 'cost',
-      title: 'Cost Optimisation',
-      score: waf.cost,
-      icon: Coins,
-      color: 'bg-amber-500',
-      description: 'Eliminates unneeded costs and sub-optimal resources through right-sizing and automation.',
-      practices: ['S3 Intelligent-Tiering to Glacier', 'Graviton 40% price/performance benefit', 'Auto Scaling off-peak scale-in', 'CloudWatch right-sizing alarms']
-    },
-    {
-      key: 'operations',
-      title: 'Operational Excellence',
-      score: waf.operations,
-      icon: TrendingUp,
-      color: 'bg-purple-500',
-      description: 'Delivers business value through continuous monitoring, automated playbooks, and Infrastructure as Code.',
-      practices: ['Terraform IaC modular provisioning', 'CloudWatch detailed metrics & SNS alerts', 'AWS Config compliance rules', 'AWS Step Functions DR automation']
-    }
-  ]
+  const wafAverage = average(waf)
+  const rating = ratingLabel(wafAverage)
+  const practices = pillarPractices(currentArch)
+  const weakest = PILLARS.reduce((lo, p) => (waf[p.key] < waf[lo.key] ? p : lo), PILLARS[0])
 
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        eyebrow="Step 07 · AWS Well-Architected Framework"
-        title="Well-Architected 5-Pillar Scorecard"
-        description="Formal evaluation against the 5 pillars of the AWS Well-Architected Framework (Project.md Section 20)."
+        eyebrow="Step 07 · Well-Architected"
+        title="Well-Architected scorecard"
+        description="Each architecture option scored against the five pillars of the AWS Well-Architected Framework, with the practices that drive each score."
         actions={
-          <Link
-            href="/reports"
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground transition-transform hover:scale-[1.02]"
-          >
-            Export Full Report
-            <ArrowRight className="size-4" />
+          <Link href="/reports" className={buttonClass('primary')}>
+            View final report
+            <ArrowRight />
           </Link>
         }
       />
 
-      <Stagger className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Overall Well-Architected Score"
-          value={wafAverage}
-          format={(n) => `${n}%`}
-          hint={`Pillar benchmark for ${currentArch.name}`}
-          icon={Award}
-          tone="primary"
-        />
-        <MetricCard
-          label="Security & Reliability Average"
-          value={Math.round((waf.security + waf.reliability) / 2)}
-          format={(n) => `${n}%`}
-          hint="Mission-critical resilience"
-          icon={ShieldCheck}
-          tone="success"
-        />
-        <MetricCard
-          label="Performance Efficiency"
-          value={waf.performance}
-          format={(n) => `${Math.round(n)}%`}
-          hint="Graviton3 + Aurora throughput"
-          icon={Cpu}
-          tone="info"
-        />
-        <MetricCard
-          label="Cost Optimization Score"
-          value={waf.cost}
-          format={(n) => `${Math.round(n)}%`}
-          hint="S3 tiering & Auto Scaling"
-          icon={Coins}
-          tone="default"
-        />
-      </Stagger>
+      <TierSwitcher architectures={architectures} recommendedIndex={recommendedIndex} value={selectedTier} onChange={setSelectedTier} />
 
-      {/* Tier Switcher */}
-      <div className="flex flex-wrap gap-2">
-        {architectures.map((a, idx) => (
-          <button
-            key={a.tier}
-            type="button"
-            onClick={() => setSelectedTier(a.tier)}
-            className={cn(
-              'inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-all',
-              a.tier === selectedTier
-                ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary/40'
-                : 'border-border bg-card text-muted-foreground hover:bg-accent/40 hover:text-foreground'
-            )}
-          >
-            <span>{a.name}</span>
-            {idx === recommendedIndex && <Pill tone="success" className="text-[10px]">RECOMMENDED</Pill>}
-          </button>
-        ))}
-      </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Section title="Overall rating" description={currentArch.name}>
+          <div className="flex flex-col items-center gap-4 text-center">
+            <ScoreRing value={wafAverage} size={132} label="Average of five pillars" />
+            <Pill tone={rating.tone}>{rating.label}</Pill>
+            <p className="max-w-xs text-xs leading-relaxed text-muted-foreground">
+              Strongest in {PILLARS.reduce((hi, p) => (waf[p.key] > waf[hi.key] ? p : hi), PILLARS[0]).title.toLowerCase()} ({Math.max(...PILLARS.map((p) => waf[p.key]))}%).
+              Biggest opportunity: {weakest.title.toLowerCase()} ({waf[weakest.key]}%).
+            </p>
+          </div>
+        </Section>
 
-      {/* 5 Pillars Detailed Grid */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {pillars.map((p) => (
-          <Section key={p.key} title={p.title} description={`${p.score}% score rating.`}>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <p.icon className="size-4 text-primary" />
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Score</span>
-                </div>
-                <span className="font-mono text-base font-bold text-foreground">{p.score}%</span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                <motion.div
-                  className={cn('h-full rounded-full', p.color)}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${p.score}%` }}
-                  transition={{ duration: 0.8, ease: 'easeOut' }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground leading-relaxed mt-1">{p.description}</p>
-
-              <div className="mt-2 flex flex-col gap-1.5 border-t border-border pt-2">
-                <span className="text-[11px] font-semibold text-foreground">Verified Cloud Controls:</span>
-                <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-                  {p.practices.map((pr, pi) => (
-                    <li key={pi} className="flex items-center gap-1.5">
-                      <CheckCircle2 className="size-3 text-success shrink-0" />
-                      <span>{pr}</span>
-                    </li>
+        <Section title="Option comparison" description="Pillar scores for all three options." className="lg:col-span-2" bodyClassName="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[480px] text-left text-sm">
+              <thead>
+                <tr className="border-b border-border text-xs text-muted-foreground">
+                  <th scope="col" className="px-5 py-3 font-medium">Pillar</th>
+                  {architectures.map((a, idx) => (
+                    <th
+                      key={a.tier}
+                      scope="col"
+                      className={cn('px-3 py-3 text-right font-medium', a.tier === selectedTier && 'text-foreground')}
+                    >
+                      {TIER_LABEL[a.tier]}
+                      {idx === recommendedIndex && <span className="ml-1 text-success" aria-label="recommended">★</span>}
+                    </th>
                   ))}
-                </ul>
-              </div>
-            </div>
-          </Section>
-        ))}
-
-        {/* Executive WAF Summary Card */}
-        <Section title="Executive Pillar Alignment" description="Summary rating against AWS standards.">
-          <div className="flex flex-col items-center justify-center gap-4 text-center p-4">
-            <ScoreRing value={wafAverage} size={130} label="WAF Rating" />
-            <div className="flex flex-col gap-1">
-              <span className="text-base font-semibold text-foreground">AWS Production Certified</span>
-              <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
-                {currentArch.name} satisfies enterprise production criteria with {waf.reliability}% reliability and {waf.security}% security rating.
-              </p>
-            </div>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {PILLARS.map((p) => (
+                  <tr key={p.key}>
+                    <th scope="row" className="px-5 py-2.5 font-medium">
+                      <span className="flex items-center gap-2">
+                        <span className="size-2 rounded-full" style={{ background: p.color }} aria-hidden="true" />
+                        {p.title}
+                      </span>
+                    </th>
+                    {architectures.map((a) => (
+                      <td
+                        key={a.tier}
+                        className={cn(
+                          'px-3 py-2.5 text-right font-mono tabular-nums',
+                          a.tier === selectedTier ? 'bg-primary/[0.06] font-semibold text-foreground' : 'text-muted-foreground',
+                        )}
+                      >
+                        {a.wellArchitected[p.key]}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr className="border-t border-border">
+                  <th scope="row" className="px-5 py-2.5 font-semibold">Average</th>
+                  {architectures.map((a) => (
+                    <td
+                      key={a.tier}
+                      className={cn('px-3 py-2.5 text-right font-mono font-semibold tabular-nums', a.tier === selectedTier && 'bg-primary/[0.06] text-primary')}
+                    >
+                      {average(a.wellArchitected)}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
           </div>
         </Section>
       </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        {PILLARS.map((p) => {
+          const score = waf[p.key]
+          const tone = scoreTone(score)
+          return (
+            <section key={p.key} className="card-sheen flex flex-col gap-3 rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex size-8 items-center justify-center rounded-lg" style={{ background: `color-mix(in oklch, ${p.color} 15%, transparent)`, color: p.color }}>
+                  <p.icon className="size-4" />
+                </span>
+                <span
+                  className={cn(
+                    'font-mono text-xl font-semibold tabular-nums',
+                    tone === 'success' ? 'text-success' : tone === 'primary' ? 'text-foreground' : 'text-destructive',
+                  )}
+                >
+                  {score}
+                </span>
+              </div>
+              <h3 className="text-sm font-semibold">{p.title}</h3>
+              <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="meter" aria-label={`${p.title} score`} aria-valuenow={score} aria-valuemin={0} aria-valuemax={100}>
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: p.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${score}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut' }}
+                />
+              </div>
+              <p className="text-xs leading-relaxed text-muted-foreground">{p.description}</p>
+              <ul className="mt-auto flex flex-col gap-1.5 border-t border-border pt-3 text-xs">
+                {practices[p.key].map((pr) => (
+                  <li key={pr.label} className={cn('flex items-start gap-1.5', pr.ok ? 'text-foreground/90' : 'text-muted-foreground')}>
+                    {pr.ok ? (
+                      <CheckCircle2 className="mt-px size-3.5 shrink-0 text-success" aria-label="In place" />
+                    ) : (
+                      <Circle className="mt-px size-3.5 shrink-0 text-muted-foreground/50" aria-label="Not in place" />
+                    )}
+                    <span>{pr.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )
+        })}
+      </div>
+
+      <NextStep
+        prev={{ href: '/security', label: 'Security analysis' }}
+        href="/reports"
+        label="Generate the final report"
+        description="Executive summary, DR matrix and bill of materials — print or export."
+      />
     </div>
   )
 }

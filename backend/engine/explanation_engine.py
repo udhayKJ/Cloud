@@ -5,7 +5,7 @@ Rule: Deterministic Engine -> Architecture Decision -> Explanation Engine -> Hum
 """
 
 from typing import Dict, Any
-from backend.models import InfrastructureProfile, ArchitectureOption, MigrationPlan
+from backend.models import InfrastructureProfile, ArchitectureOption, MigrationPlan, DatabaseType
 
 
 def generate_architecture_explanation(
@@ -16,14 +16,28 @@ def generate_architecture_explanation(
 ) -> Dict[str, str]:
     q_lower = question.lower()
     
-    if "aurora" in q_lower or "database" in q_lower:
+    if ("aurora" in q_lower or "database" in q_lower) and p.database == DatabaseType.NONE:
         explanation = (
-            f"**Amazon Aurora** was selected for {p.name} because the workload utilizes a {p.database.upper()} engine "
-            f"with {p.peakRps} peak RPS and {'high read-heavy' if p.readHeavy else 'standard'} traffic characteristics. "
-            "Aurora delivers up to 5x throughput over standard MySQL/PostgreSQL by offloading the logging layer to a "
-            "distributed 6-way replicated storage subsystem across 3 Availability Zones. It provides millisecond-level "
-            "failover, storage auto-scaling up to 128 TB without downtime, and serverless read replication."
+            f"{p.name} has no database tier, so no managed database service was selected. "
+            f"**{arch.name}** focuses on stateless compute behind a load balancer, with Amazon S3 for file storage."
         )
+    elif "aurora" in q_lower or "database" in q_lower:
+        # Describe the service the engine actually chose for this tier rather than assuming Aurora.
+        explanation = (
+            f"**{arch.databaseService}** was selected for {p.name} because the workload uses a {p.database.value.upper()} engine "
+            f"with {p.peakRps} peak RPS and {'read-heavy' if p.readHeavy else 'balanced read/write'} traffic. "
+        )
+        if "aurora" in arch.databaseService.lower():
+            explanation += (
+                "Aurora delivers up to 5x the throughput of standard MySQL/PostgreSQL by offloading the logging layer to a "
+                "distributed 6-way replicated storage subsystem across 3 Availability Zones. It provides fast automated "
+                "failover and storage auto-scaling up to 128 TB without downtime."
+            )
+        else:
+            explanation += (
+                "A managed RDS engine keeps application compatibility while AWS handles patching, automated backups and "
+                f"{'Multi-AZ failover' if arch.multiAz else 'point-in-time recovery'}, minimising migration risk."
+            )
     elif "snowball" in q_lower or "snowmobile" in q_lower or "migration method" in q_lower or "dms" in q_lower:
         explanation = (
             f"**{migration.dataMigration['method']}** was recommended because the total migration dataset is "
@@ -55,7 +69,7 @@ def generate_architecture_explanation(
         )
     else:
         explanation = (
-            f"Based on your requirements ({p.servers} servers, {p.database.upper()}, {p.monthlyUsers:,} monthly users, "
+            f"Based on your requirements ({p.servers} servers, {p.database.value.upper()}, {p.monthlyUsers:,} monthly users, "
             f"and budget of ${p.budgetUsd:,.2f}), the deterministic engine mapped your workload to **{arch.name}** with a "
             f"**{migration.strategy.value}** migration strategy. This meets your RTO ({p.rtoMinutes}m) and RPO ({p.rpoMinutes}m) goals."
         )

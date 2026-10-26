@@ -1,11 +1,11 @@
 'use client'
 
-import { useId } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useEffect, useId, useState } from 'react'
+import { Check, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const base =
-  'h-10 w-full rounded-lg border border-input bg-background/60 px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring'
+  'h-10 w-full rounded-lg border border-input bg-background/60 px-3 text-sm outline-none transition-colors placeholder:text-muted-foreground hover:border-foreground/20 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-ring aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/40 disabled:cursor-not-allowed disabled:opacity-50'
 
 export function Field({
   label,
@@ -15,17 +15,18 @@ export function Field({
 }: {
   label: string
   hint?: string
-  children: (id: string) => React.ReactNode
+  children: (id: string, labelId: string) => React.ReactNode
   className?: string
 }) {
   const id = useId()
+  const labelId = `${id}-label`
   return (
     <div className={cn('flex flex-col gap-1.5', className)}>
-      <label htmlFor={id} className="text-xs font-medium text-muted-foreground">
+      <label id={labelId} htmlFor={id} className="text-xs font-medium text-foreground/80">
         {label}
       </label>
-      {children(id)}
-      {hint && <span className="text-[11px] leading-relaxed text-muted-foreground/70">{hint}</span>}
+      {children(id, labelId)}
+      {hint && <span className="text-[11px] leading-relaxed text-muted-foreground">{hint}</span>}
     </div>
   )
 }
@@ -47,16 +48,42 @@ export function NumberInput({
   onChange: (n: number) => void
   suffix?: string
 }) {
+  // Keep the raw text locally so the field can be cleared while typing; only valid,
+  // in-range numbers are committed, and the value is clamped when focus leaves.
+  const [text, setText] = useState(() => (Number.isFinite(value) ? String(value) : ''))
+  const [focused, setFocused] = useState(false)
+  const lo = min === undefined ? -Infinity : Number(min)
+  const hi = max === undefined ? Infinity : Number(max)
+
+  useEffect(() => {
+    if (!focused) setText(Number.isFinite(value) ? String(value) : '')
+  }, [value, focused])
+
+  const parsed = text.trim() === '' ? NaN : Number(text)
+  const invalid = focused ? false : !Number.isFinite(parsed) || parsed < lo || parsed > hi
+
   return (
     <div className="relative flex items-center">
       <input
         type="number"
         inputMode="decimal"
-        value={Number.isFinite(value) ? value : ''}
+        value={text}
         min={min}
         max={max}
         step={step}
-        onChange={(e) => onChange(e.target.value === '' ? 0 : Number(e.target.value))}
+        onFocus={() => setFocused(true)}
+        onChange={(e) => {
+          setText(e.target.value)
+          const n = e.target.value.trim() === '' ? NaN : Number(e.target.value)
+          if (Number.isFinite(n) && n >= lo && n <= hi) onChange(n)
+        }}
+        onBlur={() => {
+          setFocused(false)
+          const n = Number.isFinite(parsed) ? Math.min(hi, Math.max(lo, parsed)) : Number.isFinite(lo) ? lo : value
+          setText(String(n))
+          if (n !== value) onChange(n)
+        }}
+        aria-invalid={invalid || undefined}
         {...rest}
         className={cn(base, 'font-mono tabular-nums', suffix && 'pr-14', rest.className)}
       />
@@ -92,6 +119,7 @@ export function RangeInput({
   format = (n) => `${n}`,
   id,
   accent = 'var(--primary)',
+  label,
 }: {
   value: number
   onChange: (n: number) => void
@@ -101,8 +129,9 @@ export function RangeInput({
   format?: (n: number) => string
   id?: string
   accent?: string
+  label?: string
 }) {
-  const pct = ((value - min) / (max - min)) * 100
+  const pct = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100))
   return (
     <div className="flex items-center gap-3">
       <input
@@ -113,6 +142,8 @@ export function RangeInput({
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
+        aria-valuetext={format(value)}
+        aria-label={label}
         style={{
           background: `linear-gradient(to right, ${accent} ${pct}%, var(--muted) ${pct}%)`,
         }}
@@ -141,7 +172,7 @@ export function Toggle({
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={cn(
-        'flex items-center justify-between gap-4 rounded-lg border px-4 py-3 text-left transition-colors',
+        'flex items-center justify-between gap-4 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring',
         checked ? 'border-primary/40 bg-primary/5' : 'border-border bg-background/40 hover:border-foreground/20',
       )}
     >
@@ -170,13 +201,15 @@ export function ChipGroup<T extends string>({
   options,
   value,
   onChange,
+  labelledBy,
 }: {
   options: { value: T; label: string }[]
   value: T
   onChange: (v: T) => void
+  labelledBy?: string
 }) {
   return (
-    <div role="radiogroup" className="flex flex-wrap gap-2">
+    <div role="radiogroup" aria-labelledby={labelledBy} className="flex flex-wrap gap-2">
       {options.map((o) => {
         const active = o.value === value
         return (
@@ -187,9 +220,9 @@ export function ChipGroup<T extends string>({
             aria-checked={active}
             onClick={() => onChange(o.value)}
             className={cn(
-              'rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+              'h-8 rounded-lg border px-3 text-xs font-medium transition-all',
               active
-                ? 'border-primary bg-primary text-primary-foreground shadow-[0_0_20px_-6px_var(--primary)]'
+                ? 'border-primary bg-primary text-primary-foreground'
                 : 'border-border bg-background/40 text-muted-foreground hover:border-foreground/30 hover:text-foreground',
             )}
           >
@@ -205,13 +238,15 @@ export function MultiChipGroup({
   options,
   value,
   onChange,
+  labelledBy,
 }: {
   options: string[]
   value: string[]
   onChange: (v: string[]) => void
+  labelledBy?: string
 }) {
   return (
-    <div className="flex flex-wrap gap-2">
+    <div role="group" aria-labelledby={labelledBy} className="flex flex-wrap gap-2">
       {options.map((o) => {
         const active = value.includes(o)
         return (
@@ -221,12 +256,13 @@ export function MultiChipGroup({
             aria-pressed={active}
             onClick={() => onChange(active ? value.filter((v) => v !== o) : [...value, o])}
             className={cn(
-              'rounded-lg border px-3 py-1.5 text-xs font-medium transition-all',
+              'inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-all',
               active
                 ? 'border-info bg-info/15 text-info'
                 : 'border-border bg-background/40 text-muted-foreground hover:border-foreground/30 hover:text-foreground',
             )}
           >
+            {active && <Check className="size-3" strokeWidth={3} />}
             {o}
           </button>
         )

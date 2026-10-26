@@ -53,10 +53,12 @@ export function simulateFailure(
       ]
       rto = steps.reduce((a, s) => a + s.durationSec, 0) / 60
       rpo = 0
-      impact = single ? 100 : Math.round(100 / arch.instanceCount)
+      // Losing one instance only takes the app down when it is the only instance in the fleet.
+      const soleInstance = arch.instanceCount <= 1
+      impact = soleInstance ? 100 : Math.round(100 / arch.instanceCount)
       recoveredBy = 'Auto Scaling group'
       failed = ['EC2 instance i-0a3f…']
-      narrative = single
+      narrative = soleInstance
         ? 'With a single instance the application is unavailable until Auto Scaling replaces it. Consider min 2 instances across AZs.'
         : `Remaining ${arch.instanceCount - 1} instance(s) absorb traffic at reduced capacity; users experience no outage.`
       break
