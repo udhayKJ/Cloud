@@ -28,9 +28,10 @@ export function simulateFailure(
   scenario: FailureScenario,
 ): DrSimulationResult {
   const single = arch.tier === 'low-cost'
-  const aurora = arch.databaseService.includes('Aurora')
-  const dynamo = arch.databaseService.includes('DynamoDB')
-  const title = SCENARIOS.find((s) => s.id === scenario)!.title
+  const dbService = arch.databaseService || ''
+  const aurora = dbService.includes('Aurora')
+  const dynamo = dbService.includes('DynamoDB')
+  const title = SCENARIOS.find((s) => s.id === scenario)?.title || 'Infrastructure Outage'
   let steps: DrStep[] = []
   let rto = 0
   let rpo = 0
